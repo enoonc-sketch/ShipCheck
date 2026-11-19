@@ -35,6 +35,11 @@ does not send data to any analytics or advertising service.
   when off, no request leaves the backend at all.
 - **Bitbucket Cloud:** read-only API calls (pull requests, commit
   statuses, pipelines) for the configured repository.
+- **Slack (only when you save an incoming-webhook URL in Settings):**
+  when a new blocker appears, ShipCheck posts a short alert to your
+  webhook containing the project key, version, verdict, score, and the
+  new blockers' issue keys and summaries (at most once per day per
+  version). With no webhook URL saved, nothing is sent.
 - **Nothing else.** No other external service is contacted.
 
 ## What ShipCheck stores (Forge Storage, on your site)
