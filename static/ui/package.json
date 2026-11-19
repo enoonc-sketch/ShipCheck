@@ -1,0 +1,9 @@
+{
+  "name": "shipcheck-ui",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": { "build": "vite build" },
+  "dependencies": { "@forge/bridge": "^5.0.0" },
+  "devDependencies": { "vite": "^7.0.0" }
+}

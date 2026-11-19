@@ -1,0 +1,170 @@
+# ShipCheck — Forge manifest (verified 2026-11-16 against the official Forge docs:
+# developer.atlassian.com/platform/forge/manifest-reference/ and the module pages).
+# Three things the earlier drafts got wrong, fixed here — verify with
+# `forge lint` on T's dev machine before deploy (the sandbox cannot install
+# the Forge CLI, so this file was checked against the docs + YAML parsing only):
+#  1. `function:` is a key UNDER `modules:` (see the Function module doc
+#     example) — NOT a top-level key. A top-level `function:` is not a
+#     documented manifest property.
+#  2. `storage:app` scope is REQUIRED for the Storage API (settings, score
+#     history, digest). Without it storage.get/set fail at runtime.
+#  3. `read:bitbucket-repositories` is NOT a valid scope. The documented
+#     Forge Bitbucket scopes for reading PRs/repos are
+#     `read:pullrequest:bitbucket` + `read:repository:bitbucket` — BUT they
+#     are "workspace scopes" and CANNOT be combined with Jira/Confluence
+#     "site scopes" in one app (forge lint: "Workspace scopes can not be
+#     used with site scopes", confirmed 2026-11-16; Atlassian community
+#     says it is not possible right now, ECO-223). Both Bitbucket scopes
+#     are therefore NOT in the manifest. Instead, 0.6.0 reads PRs and
+#     pipelines through the Bitbucket Cloud REST API with an admin-provided
+#     read-only API token, via Forge external fetch (api.fetch, see #6) —
+#     no Bitbucket scope is needed for that path. Re-add the native scopes
+#     only if/when the platform allows mixing the scope families.
+#  4. The optional AI summary calls the free CoArena API from the Forge
+#     backend function (src/ai-summary.js via api.fetch in src/index.js).
+#     Forge blocks external calls unless the host is allowlisted, so
+#     `permissions.external.fetch.backend` lists https://coarena.ai
+#     (verified against the official Permissions + Runtime egress docs,
+#     2026-11-16). Nothing else is allowlisted; the app has no other
+#     external calls. Adding this entry is a permission change: after
+#     deploy, the site admin must re-approve the install if prompted.
+#  5. Confluence REST v2 endpoints need GRANULAR scopes, not the classic
+#     ones: `GET /api/v2/spaces` requires `read:space:confluence`,
+#     `POST /api/v2/pages` requires `write:page:confluence`, and
+#     `GET /api/v2/pages/{id}` requires `read:page:confluence` (v2 API
+#     reference, "OAuth 2.0 scopes required" on each operation). The
+#     classic `read:confluence-space.summary` /
+#     `write:confluence-content` cover v1 only — with only those, v2
+#     calls return 401 "scope does not match" (verified live 2026-11-16:
+#     publish failed twice with "space lookup failed: 401"). 0.6.0 added
+#     the first two granular scopes but MISSED `read:page:confluence` —
+#     the update-in-place path reads the page first
+#     (`GET /api/v2/pages/{id}` in src/confluence.js updatePage), so
+#     re-publishing failed twice with "Confluence returned 401"
+#     (2026-11-16 23:17/23:21). 0.7.0 adds it (P0-1) and REMOVES the
+#     three classic scopes: the tree has no v1 Confluence call at all
+#     (grep `/wiki/rest/api/` is empty), so they are dead weight. If
+#     `forge lint` or a live publish errors after the removal, restore
+#     the three classic scopes — they are harmless. Adding/removing
+#     scopes is a permission change: deploy triggers MAJOR_VERSION_RULE
+#     again, then the site admin must run `forge install --upgrade` for
+#     Jira + Confluence.
+#  6. 0.6.0 reads Bitbucket PRs + pipelines through the Bitbucket Cloud
+#     REST API (src/bitbucket.js, api.fetch with a Bearer API token from
+#     Settings), so `https://api.bitbucket.org` joins the egress list
+#     below (after coarena.ai). Adding an egress host is a permission
+#     change: deploy triggers MAJOR_VERSION_RULE again, then the site
+#     admin must run `forge install --upgrade` for Jira + Confluence.
+#     Without a token the app keeps working and labels those slices
+#     "not connected" — the egress entry alone changes nothing at runtime.
+#  7. 0.7.0 permission freeze (one approval round, then no more scope
+#     changes — the doc's §4.6 principle): the scope list below is the
+#     FINAL 0.7.0 list. New in this version:
+#       - `read:page:confluence` — P0-1 publish-401 fix (see #5) and the
+#         docs-page-exists check (P1-2 follow-up: the adapter verifies
+#         the published page still exists before counting Docs ready).
+#       - `write:jira-work` — P1-11: the scheduled trigger posts a Jira
+#         comment when the verdict drops to BLOCKED or a new blocker
+#         appears (POST /rest/api/3/issue/{key}/comment, asApp).
+#       - `read:dev-info:jira` — P1-4 layer 2: reading linked PRs from
+#         Jira's development info
+#         (GET /rest/dev-status/1.0/issue/detail). Verified against the
+#         docs 2026-11-16: `read:jira-work` does NOT cover that endpoint
+#         (community report: 401 "scope does not match" with
+#         read:jira-work + read:jira-software +
+#         read:source-code:jira-software); `read:dev-info:jira` is the
+#         documented scope ("Read development information"). The
+#         endpoint is undocumented and may change without notice, and it
+#         only returns data once Jira is linked to Bitbucket — the
+#         adapter degrades to layer 1 on any failure, never throws.
+#     Removed in this version: the three classic Confluence scopes (see
+#     #5). NOT added: any Bitbucket native scope (still mutually
+#     exclusive with site scopes, ECO-223) and no new egress host.
+#  8. 0.9.0 (P2-3, Slack/Webhook push): the trigger POSTs the same
+#     alert to a Slack incoming webhook when the push switch is on
+#     (src/slack.js, api.fetch). `https://hooks.slack.com` joins the
+#     egress list below. NO new scope is needed — external fetch needs
+#     only the egress entry — so the 0.7.0 scope freeze still holds
+#     (the scope list below is unchanged). Adding an egress host is
+#     still a permission change: deploy triggers MAJOR_VERSION_RULE
+#     again, then the site admin must run `forge install --upgrade`
+#     for Jira + Confluence. Without a webhook URL configured the app
+#     behaves exactly as 0.8.0 — the egress entry alone changes
+#     nothing at runtime.
+modules:
+  # Project page: the main ShipCheck dashboard (readiness score, blockers, notes)
+  jira:projectPage:
+    - key: shipcheck-project-page
+      resource: main
+      resolver:
+        function: main
+      title: ShipCheck — Release Readiness
+  # Issue panel: per-issue release context (which version, blocker status)
+  jira:issuePanel:
+    - key: shipcheck-issue-panel
+      resource: main
+      resolver:
+        function: main
+      viewportSize: medium
+      title: ShipCheck
+      icon: static/icon.svg
+  # Jira admin page: pick project / version / docs space (no secrets stored)
+  jira:adminPage:
+    - key: shipcheck-admin-page
+      resource: main
+      resolver:
+        function: main
+      title: ShipCheck Settings
+  # Weekly digest: scheduled trigger, publishes the readiness report to Confluence.
+  # `interval: day` on purpose: Forge fires the trigger daily (starting
+  # ~5 minutes after deployment) and the handler only sends on the weekday
+  # chosen in Settings (default Friday) — a `week` interval would anchor to
+  # the deploy day and could never match the setting, and the module has no
+  # weekday property. The trigger starts ~5 minutes after deployment.
+  # Untestable locally.
+  scheduledTrigger:
+    - key: shipcheck-weekly-digest
+      function: digest
+      interval: day
+  # Function declarations live under `modules:` (per the Function module doc).
+  function:
+    - key: main
+      handler: index.handler
+    - key: digest
+      handler: trigger.handler
+      timeoutSeconds: 120
+resources:
+  # Built by Vite (`npm run build:ui`) — run before every `forge deploy`.
+  # The output is gitignored; a fresh clone must build it first.
+  - key: main
+    path: static/ui/build
+app:
+  runtime:
+    name: nodejs22.x
+  # Placeholder id: `forge register` replaces it on T's machine.
+  id: ari:cloud:ecosystem::app/00000000-0000-0000-0000-000000000000
+  description: >
+    Release readiness for Jira teams: a rule-based score from issues, PRs and
+    deployments, a blockers rollup, and one-click Confluence release notes.
+    Optional on-demand AI summary via a free external API (admin-provided
+    key) — the score itself is always rule-based, and the app stays $0
+    inside the free tier.
+permissions:
+  scopes:
+    - read:jira-work
+    - read:jira-user
+    - read:space:confluence
+    - read:page:confluence
+    - write:page:confluence
+    - write:jira-work
+    - read:dev-info:jira
+    - storage:app
+  external:
+    fetch:
+      backend:
+        - 'https://coarena.ai'
+        - 'https://api.bitbucket.org'
+        - 'https://hooks.slack.com'
+  content:
+    styles:
+      - 'unsafe-inline'

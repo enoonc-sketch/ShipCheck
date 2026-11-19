@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ShipCheck — Release Readiness</title>
+  <style>
+    :root { --bg:#F5F5F7; --card:#fff; --ink:#1d1d1f; --muted:#6e6e73;
+      --blue:#007AFF; --green:#34C759; --amber:#FF9F0A; --red:#FF3B30;
+      --track:#E9E9EE; --border:rgba(0,0,0,.08); }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--ink);
+      font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+    main { max-width:880px; margin:0 auto; padding:24px; }
+    h1 { font-size:24px; margin:0 0 4px; }
+    h2 { font-size:18px; margin:0 0 8px; }
+    p.sub { color:var(--muted); margin:0 0 20px; }
+    .card { background:var(--card); border:1px solid var(--border); border-radius:16px;
+      padding:20px; margin-bottom:16px;
+      box-shadow:0 1px 3px rgba(0,0,0,.08), 0 8px 24px rgba(0,0,0,.04); }
+    .score { display:flex; align-items:center; gap:20px; }
+    .ring { width:96px; height:96px; border-radius:50%; display:grid; flex:none;
+      place-items:center; font-size:28px; font-weight:700; color:#fff; }
+    .verdict { font-size:20px; font-weight:700; }
+    .verdict.READY { color:var(--green); } .verdict.CAUTION { color:var(--amber); }
+    .verdict.BLOCKED { color:var(--red); }
+    .badge { display:inline-block; border-radius:999px; padding:4px 12px;
+      font-size:14px; font-weight:600; }
+    .badge.READY { background:#E7F9EC; color:#1F7A33; }
+    .badge.CAUTION { background:#FFF4E0; color:#8A5A00; }
+    .badge.BLOCKED { background:#FDECEA; color:#B3261E; }
+    .badge.demo { background:#EAF2FF; color:#0057D9; }
+    ul { margin:8px 0 0; padding-left:20px; }
+    li { margin:4px 0; }
+    pre { background:var(--bg); border-radius:12px; padding:16px;
+      overflow:auto; font-size:14px; }
+    button { background:var(--blue); color:#fff; border:0; border-radius:12px;
+      padding:10px 18px; font-size:15px; cursor:pointer; }
+    button.secondary { background:var(--track); color:var(--ink); }
+    button:disabled { opacity:.5; cursor:default; }
+    input, select { font-size:15px; padding:8px 10px; border:1px solid var(--border);
+      border-radius:10px; background:#fff; }
+    label { font-size:15px; }
+    .row { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+    .pill { display:inline-block; border-radius:999px; padding:2px 10px;
+      font-size:13px; background:var(--bg); }
+    .barRow { display:grid; grid-template-columns:110px 1fr 56px; gap:12px;
+      align-items:center; margin:8px 0; font-size:15px; }
+    .bar { height:10px; background:var(--track); border-radius:999px; overflow:hidden; }
+    .bar > div { height:100%; border-radius:999px; background:var(--blue); }
+    .barRow.zero .bar > div { background:var(--red); }
+    .skeleton { height:16px; border-radius:8px; background:var(--track);
+      margin:10px 0; animation:pulse 1.2s ease-in-out infinite; }
+    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.5; } }
+    .errorBox { border:1px solid #F5C6C2; background:#FDECEA; color:#B3261E; }
+    .emptyBox { border:1px dashed var(--border); text-align:center;
+      padding:32px 20px; color:var(--muted); }
+    .field { display:flex; flex-direction:column; gap:6px; margin-bottom:14px; }
+    .field > span { font-size:15px; font-weight:600; }
+    .hint { font-size:14px; color:var(--muted); }
+    .hidden { display:none; }
+    details { margin-top:12px; }
+    summary { cursor:pointer; font-weight:600; }
+    .explainRow { display:grid; grid-template-columns:110px 1fr; gap:12px;
+      margin:10px 0; font-size:15px; }
+    .explainRow ul { margin:4px 0 0; }
+  </style>
+</head>
+<body>
+<main>
+  <h1 data-i18n="app.title">ShipCheck — Release Readiness</h1>
+  <p class="sub" data-i18n="app.subtitle">Rule-based readiness from Jira issues, Bitbucket PRs and deployments.
+    The AI summary is optional and never affects the score.</p>
+  <div class="row" style="margin-bottom:16px">
+    <label><span data-i18n="lang.label">Language</span>
+      <select id="langSelect">
+        <option value="en" selected>English</option>
+        <option value="zh-CN">简体中文</option>
+      </select></label>
+  </div>
+
+  <!-- Dashboard: jira.projectPage -->
+  <section id="dashboardView">
+    <div class="card">
+      <div class="row">
+        <label><span data-i18n="dash.project">Project</span> <input id="projectKey" value="SHIP" size="8"></label>
+        <label><span data-i18n="dash.version">Version</span> <input id="version" value="1.4.0" size="8"></label>
+        <button id="refresh" data-i18n="dash.check">Check readiness</button>
+      </div>
+    </div>
+
+    <div class="card hidden" id="demoBanner">
+      <span class="badge demo" data-i18n="demo.badge">Demo data</span>
+      <p style="margin:12px 0 0" data-i18n="demo.body">This release is a built-in sample, so the app works with zero
+        configuration. Connect a real Jira project in ShipCheck Settings to score live data.</p>
+    </div>
+
+    <div class="card hidden" id="loading" aria-live="polite">
+      <div class="skeleton" style="width:60%"></div>
+      <div class="skeleton" style="width:85%"></div>
+      <div class="skeleton" style="width:40%"></div>
+      <p data-i18n="loading.text">Checking readiness…</p>
+    </div>
+
+    <div class="card errorBox hidden" id="error">
+      <h2 data-i18n="error.title">Something went wrong</h2>
+      <p id="errorMessage"></p>
+      <button id="retry" class="secondary" data-i18n="error.retry">Try again</button>
+    </div>
+
+    <div class="card emptyBox hidden" id="empty">
+      <h2 data-i18n="empty.title">No release data yet</h2>
+      <p data-i18n="empty.body">No issues, pull requests or deployments are scoped to this version.<br>
+        Scope some issues to the version, or keep demo mode on to see a sample release.</p>
+    </div>
+
+    <div class="card hidden" id="scoreCard">
+      <div class="score">
+        <div class="ring" id="ring">–</div>
+        <div>
+          <div class="verdict" id="verdict">–</div>
+          <div id="breakdown" class="sub"></div>
+          <div id="trend" class="hint"></div>
+        </div>
+      </div>
+      <div id="bars" style="margin-top:16px"></div>
+      <p id="coverage" class="hint"></p>
+      <p id="dataSources" class="hint"></p>
+      <p id="updatedAt" class="hint"></p>
+      <details id="explainDetails">
+        <summary data-i18n="explain.title">Why this score?</summary>
+        <div id="explanation"></div>
+      </details>
+    </div>
+
+    <div class="card hidden" id="todosCard">
+      <h2 data-i18n="todos.title">What&rsquo;s missing</h2>
+      <ul id="todos"></ul>
+    </div>
+
+    <div class="card hidden" id="blockersCard">
+      <h2 data-i18n="blockers.title">Blockers</h2>
+      <ul id="blockers"></ul>
+      <h2 style="margin-top:16px" data-i18n="warnings.title">Warnings</h2>
+      <ul id="warnings"></ul>
+    </div>
+
+    <div class="card hidden" id="notesCard">
+      <h2 data-i18n="notes.title">Release notes</h2>
+      <pre id="notes"></pre>
+      <div class="row">
+        <button id="publish" data-i18n="notes.publish">Publish to Confluence</button>
+        <span id="publishStatus" class="pill"></span>
+      </div>
+    </div>
+
+    <div class="card hidden" id="aiSummaryCard">
+      <h2 data-i18n="ai.title">AI summary</h2>
+      <p id="aiSummaryBody" class="sub" data-i18n="ai.bodyDefault">Press “Generate AI summary” for a short read-out of this release.</p>
+      <div class="row">
+        <button id="generateAiSummary">Generate AI summary</button>
+        <span id="aiSummaryStatus" class="pill"></span>
+      </div>
+    </div>
+
+    <div class="card hidden" id="digestCard">
+      <h2 data-i18n="digest.title">Weekly digest</h2>
+      <p id="digestBody" class="sub"></p>
+    </div>
+  </section>
+
+  <!-- Issue panel: jira.issuePanel -->
+  <section id="issueView" class="hidden">
+    <div class="card">
+      <div class="row">
+        <label><span data-i18n="issue.label">Issue</span> <input id="issueKey" size="10" placeholder="SHIP-9"></label>
+        <button id="checkIssue" data-i18n="issue.check">Check issue</button>
+      </div>
+    </div>
+
+    <div class="card hidden" id="issueLoading" aria-live="polite">
+      <div class="skeleton" style="width:55%"></div>
+      <div class="skeleton" style="width:75%"></div>
+      <p data-i18n="issue.loading">Loading issue context…</p>
+    </div>
+
+    <div class="card errorBox hidden" id="issueError">
+      <h2 data-i18n="error.title">Something went wrong</h2>
+      <p id="issueErrorMessage"></p>
+      <button id="issueRetry" class="secondary" data-i18n="error.retry">Try again</button>
+    </div>
+
+    <div class="card emptyBox hidden" id="issueEmpty">
+      <h2 data-i18n="issue.emptyTitle">Issue not in this release</h2>
+      <p id="issueEmptyMessage"></p>
+    </div>
+
+    <div class="card hidden" id="issueCard">
+      <h2 id="issueTitle">–</h2>
+      <p><span class="badge" id="issueBadge">–</span> <span id="issueMeta"></span></p>
+      <p id="issueRelease"></p>
+      <p id="issueScoreDrag" class="hint"></p>
+      <h2 data-i18n="issue.linkedPrs">Linked pull requests</h2>
+      <ul id="issuePrs"></ul>
+      <h2 data-i18n="issue.releaseBlockers">Release blockers</h2>
+      <ul id="issueBlockers"></ul>
+    </div>
+  </section>
+
+  <!-- Admin page: jira.adminPage -->
+  <section id="adminView" class="hidden">
+    <div class="card">
+      <h2 data-i18n="admin.title">ShipCheck Settings</h2>
+      <p class="sub" data-i18n="admin.subtitle">Settings are stored in Forge Storage. Your API key is stored there too
+        and is never shown back after saving.</p>
+      <h2 data-i18n="admin.releasesTitle">Releases</h2>
+      <p class="sub" data-i18n="admin.releasesSub">One row per release (project + version). The dashboard scores the
+        release you pick there; the digest runs for every row with the
+        weekly digest switched on.</p>
+      <div id="configList"></div>
+      <div class="row" style="margin-bottom:14px">
+        <button id="addConfig" class="secondary" data-i18n="admin.addRelease">Add release</button>
+      </div>
+      <template id="configRowTemplate">
+        <div class="card configRow" style="background:var(--bg)">
+          <div class="row">
+            <label><span data-i18n="admin.project">Project</span> <input data-field="projectKey" placeholder="SHIP" size="8"></label>
+            <label><span data-i18n="admin.version">Version</span> <input data-field="version" placeholder="1.4.0" size="8"></label>
+            <label><span data-i18n="admin.space">Docs space</span> <input data-field="spaceKey" placeholder="TEAM" size="8"></label>
+            <button class="secondary configRemove" data-i18n="admin.remove">Remove</button>
+          </div>
+          <div class="field" style="margin-top:12px">
+            <label><input type="checkbox" data-field="digestEnabled">
+              <span data-i18n="admin.digestLabel">Weekly digest — send a readiness report before the weekly release</span></label>
+          </div>
+          <div class="row">
+            <label><span data-i18n="admin.workspace">Bitbucket workspace</span> <input data-field="bitbucketWorkspace" placeholder="acme" size="10"></label>
+            <label><span data-i18n="admin.repo">Repository</span> <input data-field="bitbucketRepoSlug" placeholder="shipcheck" size="12"></label>
+            <label><span data-i18n="admin.branch">Deploy branch</span> <input data-field="bitbucketDeployBranch" placeholder="main" size="8"></label>
+          </div>
+          <span class="hint" data-i18n="admin.bitbucketHint">Bitbucket is optional: leave the workspace empty if pull requests
+            and deployments are not connected. The token is saved separately below.</span>
+        </div>
+      </template>
+      <div class="field">
+        <span data-i18n="admin.weights">Scoring weights</span>
+        <div class="row">
+          <label><span data-i18n="admin.weightBlockers">Blockers</span> <input id="setWeightBlockers" type="number" min="0" max="100" value="40" size="4"></label>
+          <label><span data-i18n="admin.weightPrs">PRs</span> <input id="setWeightPullRequests" type="number" min="0" max="100" value="25" size="4"></label>
+          <label><span data-i18n="admin.weightIssues">Issues</span> <input id="setWeightIssuesDone" type="number" min="0" max="100" value="20" size="4"></label>
+          <label><span data-i18n="admin.weightDocs">Docs</span> <input id="setWeightDocs" type="number" min="0" max="100" value="15" size="4"></label>
+          <span id="weightsSum" class="pill">Total: 100</span>
+        </div>
+        <span class="hint" data-i18n="admin.weightsHint">The four weights must add up to 100. The defaults are 40 / 25 / 20 / 15.</span>
+      </div>
+      <div class="field">
+        <span data-i18n="admin.coarenaKey">CoArena API key</span>
+        <input type="password" id="setCoarenaApiKey" placeholder="Paste your CoArena API key" autocomplete="off">
+        <span class="hint" data-i18n="admin.coarenaHint">Enables the optional AI summary on the dashboard. Leave blank to keep the saved key.</span>
+        <div class="row"><button id="removeCoarenaKey" class="secondary" data-i18n="admin.removeKey">Remove key</button></div>
+      </div>
+      <div class="field">
+        <label><input type="checkbox" id="aiSummaryEnabled">
+          <span data-i18n="admin.aiSummaryLabel">AI summary — send release data to CoArena to generate the summary (untick to disable it entirely)</span></label>
+      </div>
+      <div class="field">
+        <span data-i18n="admin.bitbucketToken">Bitbucket API token</span>
+        <input type="password" id="setBitbucketApiToken" placeholder="Paste a read-only Bitbucket API token" autocomplete="off">
+        <span class="hint" data-i18n="admin.bitbucketHint">Read-only API token for pull requests and pipelines. One token for all
+          releases above — it must have read access to every repository listed.
+          Used only to read them — never shown back after saving.</span>
+        <div class="row"><button id="removeBitbucketToken" class="secondary" data-i18n="admin.removeToken">Remove token</button></div>
+      </div>
+      <div class="field">
+        <span data-i18n="admin.slackWebhook">Slack webhook URL</span>
+        <input type="password" id="setSlackWebhookUrl" placeholder="Paste a Slack incoming webhook URL" autocomplete="off">
+        <span class="hint" data-i18n="admin.slackHint">Posts a short alert to a Slack channel when the verdict drops to BLOCKED or a new blocker appears — the same trigger as the Jira comments below. Leave blank if not used; never shown back after saving.</span>
+        <div class="row"><button id="removeSlackWebhook" class="secondary" data-i18n="admin.removeWebhook">Remove webhook</button></div>
+      </div>
+      <div class="field">
+        <label><input type="checkbox" id="demoMode">
+          <span data-i18n="admin.demoLabel">Demo mode — show the built-in sample release when no real data is configured</span></label>
+      </div>
+      <div class="field">
+        <label><input type="checkbox" id="pushEnabled">
+          <span data-i18n="admin.pushLabel">Push comments — post a Jira comment on a blocking issue when the verdict
+          drops to BLOCKED or a new blocker appears</span></label>
+      </div>
+      <div class="field">
+        <span data-i18n="admin.digestDay">Digest day</span>
+        <select id="digestDay">
+          <option value="0" data-i18n="weekday.0">Sunday</option>
+          <option value="1" data-i18n="weekday.1">Monday</option>
+          <option value="2" data-i18n="weekday.2">Tuesday</option>
+          <option value="3" data-i18n="weekday.3">Wednesday</option>
+          <option value="4" data-i18n="weekday.4">Thursday</option>
+          <option value="5" selected data-i18n="weekday.5">Friday</option>
+          <option value="6" data-i18n="weekday.6">Saturday</option>
+        </select>
+      </div>
+      <div class="row">
+        <button id="saveSettings" data-i18n="admin.save">Save settings</button>
+        <span id="settingsStatus" class="pill"></span>
+      </div>
+    </div>
+    <div class="card">
+      <h2 data-i18n="admin.digestTitle">Weekly digest</h2>
+      <p data-i18n="admin.digestBody">The digest is a scheduled trigger that runs once a day. It only sends
+        on the weekday chosen above (default Friday) and at most once a week.
+        The trigger only runs on a real site — it cannot be tested locally.</p>
+      <div id="digestStatus"></div>
+      <div class="row">
+        <select id="runDigestConfig"></select>
+        <button id="runDigestNow" class="secondary" data-i18n="admin.runNow">Run digest now</button>
+        <span id="runDigestStatus" class="pill"></span>
+      </div>
+      <span class="hint" data-i18n="admin.digestHint">“Run digest now” sends the report immediately but does not change
+        the weekly schedule — the next scheduled digest still fires on its day.</span>
+    </div>
+  </section>
+</main>
+<script type="module" src="/src/app.js"></script>
+</body>
+</html>
