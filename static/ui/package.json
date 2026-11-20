@@ -3,7 +3,19 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "scripts": { "build": "vite build" },
-  "dependencies": { "@forge/bridge": "^5.0.0" },
-  "devDependencies": { "vite": "^7.0.0" }
+  "scripts": {
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@forge/bridge": "^5.0.0"
+  },
+  "devDependencies": {
+    "vite": "^7.0.0"
+  },
+  "overrides": {
+    "linkify-it": "^5.0.1",
+    "prosemirror-view": "^1.42.3",
+    "minimatch": "^11.0.1",
+    "glob": "^14.0.2"
+  }
 }
