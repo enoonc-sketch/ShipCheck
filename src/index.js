@@ -36,6 +36,7 @@ import {
   lastDigestKeyFor,
 } from './settings.js';
 import { isValidSlackWebhookUrl } from './slack.js';
+import { getSecret, setSecret, deleteSecret } from './secrets.js';
 import { getAiSummaryCore } from './ai-summary.js';
 import {
   snapshotFromContext, computeTrend, trendLabel,
@@ -78,7 +79,8 @@ async function loadSettings() {
 
 /**
  * Load the secrets (0.7.0, P1-5). CoArena key and Bitbucket token live
- * under their own storage keys, never inside the settings object. Legacy
+ * in Forge's encrypted secret store (storage.setSecret/getSecret via
+ * src/secrets.js), never inside the settings object. Legacy
  * keys still stored inside the settings object (0.6.0) are read as a
  * fallback until the next admin save migrates them; secretsLegacy flags
  * that state for the admin page. The Slack webhook URL (0.9.0, P2-3)
@@ -88,9 +90,9 @@ async function loadSettings() {
 async function loadSecrets() {
   const raw = (await storage.get(SETTINGS_STORAGE_KEY)) ?? {};
   const legacy = extractLegacySecrets(raw);
-  const coarenaApiKey = (await storage.get(SECRET_COARENA_KEY)) || legacy.coarenaApiKey || '';
-  const bitbucketApiToken = (await storage.get(SECRET_BITBUCKET_KEY)) || legacy.bitbucketApiToken || '';
-  const slackWebhookUrl = (await storage.get(SECRET_SLACK_KEY)) || '';
+  const coarenaApiKey = (await getSecret(storage, SECRET_COARENA_KEY)) || legacy.coarenaApiKey || '';
+  const bitbucketApiToken = (await getSecret(storage, SECRET_BITBUCKET_KEY)) || legacy.bitbucketApiToken || '';
+  const slackWebhookUrl = (await getSecret(storage, SECRET_SLACK_KEY)) || '';
   return {
     coarenaApiKey,
     bitbucketApiToken,
@@ -292,12 +294,12 @@ export const handler = makeResolver({
     // Migrate any legacy secrets still in the settings object: the new
     // keys win, and the stored settings object is saved WITHOUT the
     // legacy fields (normalizeSettings already drops them).
-    if (nextCoarenaKey) await storage.set(SECRET_COARENA_KEY, nextCoarenaKey);
-    else await storage.delete(SECRET_COARENA_KEY);
-    if (nextBitbucketToken) await storage.set(SECRET_BITBUCKET_KEY, nextBitbucketToken);
-    else await storage.delete(SECRET_BITBUCKET_KEY);
-    if (nextSlackWebhook) await storage.set(SECRET_SLACK_KEY, nextSlackWebhook);
-    else await storage.delete(SECRET_SLACK_KEY);
+    if (nextCoarenaKey) await setSecret(storage, SECRET_COARENA_KEY, nextCoarenaKey);
+    else await deleteSecret(storage, SECRET_COARENA_KEY);
+    if (nextBitbucketToken) await setSecret(storage, SECRET_BITBUCKET_KEY, nextBitbucketToken);
+    else await deleteSecret(storage, SECRET_BITBUCKET_KEY);
+    if (nextSlackWebhook) await setSecret(storage, SECRET_SLACK_KEY, nextSlackWebhook);
+    else await deleteSecret(storage, SECRET_SLACK_KEY);
     await storage.set(SETTINGS_STORAGE_KEY, settings);
     await recordAuditEvent(storage, buildAuditEvent({
       action: 'settings.save', accountId: context?.accountId ?? null, ok: true,

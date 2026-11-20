@@ -43,6 +43,7 @@ import {
   digestSentKeyFor, lastDigestKeyFor, pushedKeyFor, slackPushedKeyFor,
 } from './settings.js';
 import { createForgeAdapter } from './adapters.js';
+import { getSecret } from './secrets.js';
 import { publishPage, forgeRequest } from './confluence.js';
 import { formatSlackAlert, postSlackAlert } from './slack.js';
 import { buildAuditEvent, recordAuditEvent } from './audit.js';
@@ -52,8 +53,8 @@ export { LAST_DIGEST_KEY };
 /** Read the settings plus the Bitbucket token and Slack webhook from their secret keys. */
 async function loadSettingsAndToken() {
   const settings = normalizeSettings(await storage.get(SETTINGS_STORAGE_KEY));
-  const bitbucketApiToken = (await storage.get(SECRET_BITBUCKET_KEY)) ?? null;
-  const slackWebhookUrl = (await storage.get(SECRET_SLACK_KEY)) ?? null;
+  const bitbucketApiToken = (await getSecret(storage, SECRET_BITBUCKET_KEY)) ?? null;
+  const slackWebhookUrl = (await getSecret(storage, SECRET_SLACK_KEY)) ?? null;
   return { settings, bitbucketApiToken, slackWebhookUrl };
 }
 

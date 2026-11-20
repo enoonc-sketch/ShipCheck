@@ -46,9 +46,12 @@ does not send data to any analytics or advertising service.
 
 - Settings (project/version/space configuration, digest weekday,
   scoring weights, feature switches) — no secrets inside.
-- Secrets separately: the CoArena API key and the Bitbucket API token,
-  each under its own storage key. They are never returned to the
-  frontend — the UI only learns whether one is saved.
+- Secrets separately: the CoArena API key, the Bitbucket API token and
+  the Slack webhook URL, each in Forge's encrypted secret store
+  (storage.setSecret / getSecret), never as plain storage values and
+  never returned to the frontend — the UI only learns whether one is
+  saved. Values written by older versions as plain storage values are
+  migrated into the secret store on first read.
 - Score snapshots (per version, last 5) and a per-version index, used
   for the trend line. A snapshot holds the version, score, verdict,
   timestamp and the scoring-rules version — no issue content.
