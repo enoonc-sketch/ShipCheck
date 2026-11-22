@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "@forge/api": "^5.0.0",
+    "@forge/api": "^8.5.0",
     "@forge/bridge": "^5.0.0",
     "@forge/resolver": "^1.0.0"
   },
