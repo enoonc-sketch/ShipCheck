@@ -1,0 +1,29 @@
+name: dependency-audit
+on:
+  push:
+    paths:
+      - 'package.json'
+      - 'package-lock.json'
+      - 'static/ui/package.json'
+      - 'static/ui/package-lock.json'
+  pull_request:
+    paths:
+      - 'package.json'
+      - 'package-lock.json'
+      - 'static/ui/package.json'
+      - 'static/ui/package-lock.json'
+  schedule:
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Audit root dependencies
+        run: npm audit --package-lock-only --audit-level=high
+      - name: Audit UI dependencies
+        run: cd static/ui && npm audit --package-lock-only --audit-level=high
