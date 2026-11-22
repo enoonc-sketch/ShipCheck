@@ -2,7 +2,7 @@
   "dependencies": {
     "@forge/api": "^5.0.0",
     "@forge/bridge": "^5.0.0",
-    "@forge/resolver": "^1.0.0"
+    "@forge/resolver": "^2.0.2"
   },
   "description": "ShipCheck \u2014 release readiness for Jira teams (Codegeist 2026 entry skeleton)",
   "engines": {
